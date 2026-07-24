@@ -1,0 +1,32 @@
+services:
+  cass1:
+    image: cassandra:5.0
+    container_name: cass1
+    environment: &env
+      CASSANDRA_CLUSTER_NAME: pulse-cluster
+      CASSANDRA_ENDPOINT_SNITCH: GossipingPropertyFileSnitch
+      CASSANDRA_SEEDS: cass1
+      MAX_HEAP_SIZE: 1G
+      HEAP_NEWSIZE: 256M
+    ports:
+      - "9042:9042"
+    volumes:
+      - ./data/cass1:/var/lib/cassandra
+  cass2:
+    image: cassandra:5.0
+    container_name: cass2
+    environment:
+      <<: *env
+    depends_on:
+      - cass1
+    volumes:
+      - ./data/cass2:/var/lib/cassandra
+  cass3:
+    image: cassandra:5.0
+    container_name: cass3
+    environment:
+      <<: *env
+    depends_on:
+      - cass1
+    volumes:
+      - ./data/cass3:/var/lib/cassandra
