@@ -211,7 +211,7 @@ func Run(opt Options) error {
 // plantFraud pushes a known fraud scenario (ground truth for precision/recall).
 func plantFraud(s *gocql.Session, jobs chan<- model.Transaction, accounts []string, logTruth func(string, string)) {
 	acct := accounts[rand.Intn(len(accounts))]
-	switch rand.Intn(7) {
+	switch rand.Intn(8) {
 	case 0: // V1 velocity: a burst of small-to-medium charges
 		logTruth(acct, "velocity")
 		for i := 0; i < 8; i++ {
@@ -238,10 +238,19 @@ func plantFraud(s *gocql.Session, jobs chan<- model.Transaction, accounts []stri
 	case 5: // A1 amount anomaly: one charge far above normal (fires once a baseline exists)
 		logTruth(acct, "amount")
 		jobs <- newTxn(acct, 80000+rand.Float64()*220000, randCity(), randCategory(), true, "amount")
-	default: // D1 dormant reactivation: seed an old last-seen, then a large charge
+	case 6: // D1 dormant reactivation: seed an old last-seen, then a large charge
 		logTruth(acct, "dormant")
 		old := time.Now().UTC().Add(-time.Duration(40*24) * time.Hour)
 		_ = s.Query(`INSERT INTO account_last_seen (account_id, last_txn_at) VALUES (?, ?)`, acct, old).Exec()
 		jobs <- newTxn(acct, 1500+rand.Float64()*20000, randCity(), randCategory(), true, "dormant")
+	default: // T1 odd-hour: seed history at OTHER hours, then transact at an unused one
+		logTruth(acct, "odd_hour")
+		h := time.Now().UTC().Hour()
+		for k := 1; k <= 7; k++ { // 7 * 3 = 21 prior txns, none in the current hour
+			_ = s.Query(
+				`UPDATE hourly_activity SET txn_count = txn_count + 3 WHERE account_id = ? AND hour_of_day = ?`,
+				acct, (h+k)%24).Exec()
+		}
+		jobs <- newTxn(acct, 100+rand.Float64()*3900, randCity(), randCategory(), true, "odd_hour")
 	}
 }
