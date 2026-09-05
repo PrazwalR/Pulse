@@ -5,3 +5,7 @@ __pycache__/
 venv/
 extra/data/
 .DS_Store
+ground_truth.jsonl
+bin/
+backend/bin/
+*.png
