@@ -89,7 +89,7 @@ func emit(s *gocql.Session, t model.Transaction) ([]model.Alert, error) {
 		`INSERT INTO txn_by_account_day
 		 (account_id, day, ts, txn_id, amount, merchant, merchant_category, city, channel, card_id)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		t.AccountID, day, t.Timestamp, t.TxnID, t.Amount, t.Merchant, t.MerchantCategory,
+		t.AccountID, day, t.Timestamp, gocql.UUID(t.TxnID), t.Amount, t.Merchant, t.MerchantCategory,
 		t.City, t.Channel, t.CardID,
 	).Exec(); err != nil {
 		return nil, fmt.Errorf("history write: %w", err)
@@ -99,7 +99,7 @@ func emit(s *gocql.Session, t model.Transaction) ([]model.Alert, error) {
 		`INSERT INTO txn_by_card_hour
 		 (card_id, hour, ts, txn_id, account_id, city, amount)
 		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		t.CardID, t.Timestamp.Truncate(time.Hour), t.Timestamp, t.TxnID, t.AccountID, t.City, t.Amount,
+		t.CardID, t.Timestamp.Truncate(time.Hour), t.Timestamp, gocql.UUID(t.TxnID), t.AccountID, t.City, t.Amount,
 	).Exec(); err != nil {
 		return nil, fmt.Errorf("card write: %w", err)
 	}

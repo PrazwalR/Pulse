@@ -36,7 +36,7 @@ func writeAlert(s *gocql.Session, a model.Alert) error {
 		`INSERT INTO alerts_by_account
 		 (account_id, raised_at, alert_id, rule, severity, detail, txn_id)
 		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		a.AccountID, a.RaisedAt, a.AlertID, a.Rule, a.Severity, a.Detail, a.TxnID,
+		a.AccountID, a.RaisedAt, gocql.UUID(a.AlertID), a.Rule, a.Severity, a.Detail, gocql.UUID(a.TxnID),
 	).Exec(); err != nil {
 		return fmt.Errorf("alert write: %w", err)
 	}
