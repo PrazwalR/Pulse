@@ -43,7 +43,9 @@ const (
 	ProducerRatePerSec = 200
 	FraudProbability   = 0.03 // chance per tick that a planted-fraud scenario runs
 	WorkerPoolSize     = 8
-	NumAccounts        = 1000
+	// A large pool keeps each account's legitimate rate realistically sparse, so
+	// V1/G1 fire on genuine fraud bursts rather than on synthetic density.
+	NumAccounts = 5000
 )
 
 // Window is a rolling velocity-counter window. `Seconds` is both the window
@@ -55,7 +57,7 @@ type Window struct {
 }
 
 // Windows are maintained on every write; V1 reads 1min/5min, C1 reads 1min.
-var Windows = []Window{{"1min", 60}, {"5min", 300}, {"1hr", 3600}}
+var Windows = []Window{{"1min", 60}, {"5min", 300}}
 
 // WindowSeconds returns the bucket size for a window name (default 60).
 func WindowSeconds(name string) int64 {

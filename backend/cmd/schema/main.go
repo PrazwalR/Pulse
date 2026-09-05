@@ -1,4 +1,4 @@
-// Command schema creates the keyspace and all seven tables. Run once after the
+// Command schema creates the keyspace and all tables. Run once after the
 // cluster is up (idempotent — safe to re-run).
 package main
 
@@ -50,12 +50,21 @@ func tableDDL() []string {
 			normal_city text, normal_txn_per_day double,
 			updated_at timestamp)`,
 
-		// 5) alerts raised by the rule engine
+		// 5) alerts raised by the rule engine, per account (full history)
 		`CREATE TABLE IF NOT EXISTS pulse.alerts_by_account (
 			account_id text, raised_at timestamp, alert_id uuid,
 			rule text, severity text, detail text, txn_id uuid,
 			PRIMARY KEY (account_id, raised_at, alert_id))
 		  WITH CLUSTERING ORDER BY (raised_at DESC, alert_id ASC)`,
+
+		// 5b) alerts bucketed by hour so the dashboard reads a bounded partition
+		// ("recent alerts across all accounts") instead of scanning every account.
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS pulse.alerts_recent (
+			bucket text, raised_at timestamp, alert_id uuid,
+			account_id text, rule text, severity text, detail text,
+			PRIMARY KEY ((bucket), raised_at, alert_id))
+		  WITH CLUSTERING ORDER BY (raised_at DESC, alert_id ASC)
+		  AND default_time_to_live = %d AND compaction = %s`, ttl, twcs),
 
 		// 6) per-account transactions-per-hour-of-day (T1). No TTL: the "has this
 		// account ever used this hour" signal must outlive the 7-day history.

@@ -1,14 +1,14 @@
 """PULSE — live fraud-alert dashboard (Streamlit, read-only).
 
-A thin window into the Cassandra `pulse` keyspace: it reads the alerts the Go
-rule engine writes and never touches the write path. Config comes from the same
-.env / environment the backend uses.
+Reads the alerts the Go rule engine writes and never touches the write path.
+Config comes from the same environment the backend uses.
 
 Run:  streamlit run app.py
 """
 
 import os
 from collections import Counter
+from datetime import datetime, timedelta, timezone
 
 import streamlit as st
 from cassandra.auth import PlainTextAuthProvider
@@ -34,6 +34,9 @@ KEYSPACE = os.getenv("CASSANDRA_KEYSPACE", "pulse")
 USERNAME = os.getenv("CASSANDRA_USERNAME") or None
 PASSWORD = os.getenv("CASSANDRA_PASSWORD") or None
 
+# Must match the Go engine's alerts_recent bucket layout (2006-01-02T15).
+BUCKET_LAYOUT = "%Y-%m-%dT%H"
+HOURS_BACK = 6
 SEVERITY_ICON = {"high": "🔴", "medium": "🟠", "low": "⚪"}
 
 
@@ -43,39 +46,43 @@ def get_session():
     cluster = Cluster(CONTACT_POINTS, port=PORT, auth_provider=auth)
     session = cluster.connect(KEYSPACE)
     session.row_factory = dict_factory
-    # PER PARTITION LIMIT grabs a recent slice from each account without scanning
-    # every row — fine for a read-only demo dashboard (not the hot path).
     prepared = session.prepare(
         "SELECT account_id, raised_at, rule, severity, detail "
-        "FROM alerts_by_account PER PARTITION LIMIT 5"
+        "FROM alerts_recent WHERE bucket = ? LIMIT ?"
     )
     return session, prepared
 
 
+def _hour_buckets(hours):
+    base = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+    return [(base - timedelta(hours=i)).strftime(BUCKET_LAYOUT) for i in range(hours)]
+
+
 def load_alerts(limit=200):
     session, prepared = get_session()
-    rows = list(session.execute(prepared))
+    rows = []
+    for bucket in _hour_buckets(HOURS_BACK):
+        rows.extend(session.execute(prepared, (bucket, limit)))
     rows.sort(key=lambda r: r["raised_at"], reverse=True)
     return rows[:limit]
 
 
 st.set_page_config(page_title="PULSE", layout="wide")
 st.title("PULSE — live fraud alerts")
-st.caption(f"keyspace `{KEYSPACE}` · alerts_by_account")
+st.caption(f"keyspace `{KEYSPACE}` · alerts_recent · last {HOURS_BACK}h")
 
 try:
     alerts = load_alerts()
-except Exception as exc:  # cluster down, wrong keyspace, schema not applied, ...
+except Exception as exc:
     st.error(
         "Could not read alerts from Cassandra.\n\n"
         f"`{type(exc).__name__}: {exc}`\n\n"
-        "Check the cluster is up (`docker compose -f extra/docker-compose.yml ps`), "
-        "the schema is applied, and CASSANDRA_* settings are correct."
+        "Check the cluster is up, the schema is applied, and CASSANDRA_* settings are correct."
     )
     st.stop()
 
 if not alerts:
-    st.info("No alerts yet. Start the producer: `go run ./cmd/producer`.")
+    st.info("No alerts in the last %dh. Start the producer: `go run ./cmd/producer`." % HOURS_BACK)
 else:
     left, right = st.columns([1, 2])
     with left:

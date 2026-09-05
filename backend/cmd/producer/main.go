@@ -14,14 +14,16 @@ func main() {
 	rate := flag.Int("rate", 0, "transactions/sec (0 = config default)")
 	workers := flag.Int("workers", 0, "worker pool size (0 = config default)")
 	fraud := flag.Float64("fraud-prob", 0, "fraud probability per tick (0 = config default)")
+	metrics := flag.String("metrics", "", "CSV path for per-second throughput (E1/E2)")
 	flag.Parse()
 
 	log.Printf("PULSE producer starting (duration=%s)...", *dur)
 	if err := producer.Run(producer.Options{
-		Duration:  *dur,
-		Rate:      *rate,
-		Workers:   *workers,
-		FraudProb: *fraud,
+		Duration:    *dur,
+		Rate:        *rate,
+		Workers:     *workers,
+		FraudProb:   *fraud,
+		MetricsPath: *metrics,
 	}); err != nil {
 		log.Fatalf("producer: %v", err)
 	}

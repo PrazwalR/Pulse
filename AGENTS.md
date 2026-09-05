@@ -66,6 +66,13 @@ code must be explainable in a viva, not just functional.
   G1 spatial → `txn_by_card_hour` + a static travel-time table; S1 structuring →
   `txn_by_account_day` (today's partition); T1 odd-hour → `hourly_activity`;
   D1 dormant → `account_last_seen`; M1 high-risk → the transaction's own category.
+- Alerts are written to `alerts_by_account` (per-account history) and
+  `alerts_recent` (hour-bucketed) so the dashboard reads a bounded partition
+  instead of scanning every account.
+- The synthetic producer models each account with a stable **home city**; only
+  the geo-fraud scenario crosses cities. This keeps G1 trustworthy — a normal
+  account never appears in two cities within an hour. Real deployments would
+  tolerate genuine travel, which G1's conservative travel-time table handles.
 
 ## Common AI failure modes on this project
 
